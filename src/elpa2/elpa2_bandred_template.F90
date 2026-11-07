@@ -566,15 +566,19 @@ max_threads, isSkewsymmetric)
       vmr_size = max_l_rows * 2 * n_cols
       umc_size = max_l_cols * 2 * n_cols
 #else
+      ! Local row/column counts decrease; reserve a full band once and
+      ! remap the host views to the exact collective sizes at each step.
       allocate(vr(l_rows + 1), stat=istat, errmsg=errorMessage)
       check_allocate("bandred: vr", istat, errorMessage)
 
 #if defined(WITH_OPENMP_OFFLOAD_GPU_VERSION)
       if (gpu_vendor() /= OPENMP_OFFLOAD_GPU .and. gpu_vendor() /= SYCL_GPU) then
 #endif
-        successGPU = gpu_malloc_host(vmr_host, max_l_rows*2*n_cols*size_of_datatype)
-        
-        check_host_alloc_gpu("bandred: vmr_host", successGPU)
+        if (istep == blk_end) then
+          successGPU = gpu_malloc_host(vmr_host, max_l_rows*2*nbw*size_of_datatype)
+
+          check_host_alloc_gpu("bandred: vmr_host", successGPU)
+        endif
         call c_f_pointer(vmr_host, vmrGPU, [max_l_rows*2*n_cols])
         call c_f_pointer(vmr_host, vmrGPU_2d, [max_l_rows,2*n_cols])
 #if defined(WITH_OPENMP_OFFLOAD_GPU_VERSION)
@@ -584,15 +588,19 @@ max_threads, isSkewsymmetric)
       endif
 #endif
 
-      successGPU = gpu_malloc(vmr_dev, max_l_rows*2*n_cols*size_of_datatype)
-      check_alloc_gpu("bandred: vmr_dev", successGPU)
+      if (istep == blk_end) then
+        successGPU = gpu_malloc(vmr_dev, max_l_rows*2*nbw*size_of_datatype)
+        check_alloc_gpu("bandred: vmr_dev", successGPU)
+      endif
 
 
 #if defined(WITH_OPENMP_OFFLOAD_GPU_VERSION)
       if (gpu_vendor() /= OPENMP_OFFLOAD_GPU .and. gpu_vendor() /= SYCL_GPU) then
 #endif
-        successGPU = gpu_malloc_host(umc_host,max_l_cols*2*n_cols*size_of_datatype)
-        check_host_alloc_gpu("bandred: umc_host", successGPU)
+        if (istep == blk_end) then
+          successGPU = gpu_malloc_host(umc_host,max_l_cols*2*nbw*size_of_datatype)
+          check_host_alloc_gpu("bandred: umc_host", successGPU)
+        endif
         
         call c_f_pointer(umc_host, umcGPU, [max_l_cols*2*n_cols])
         call c_f_pointer(umc_host, umcGPU_2d, [max_l_cols,2*n_cols])
@@ -603,8 +611,10 @@ max_threads, isSkewsymmetric)
       endif
 #endif
 
-      successGPU = gpu_malloc(umc_dev, max_l_cols*2*n_cols*size_of_datatype)
-      check_alloc_gpu("bandred: umc_dev", successGPU)
+      if (istep == blk_end) then
+        successGPU = gpu_malloc(umc_dev, max_l_cols*2*nbw*size_of_datatype)
+        check_alloc_gpu("bandred: umc_dev", successGPU)
+      endif
 #endif
     else ! GPU not used
 
@@ -2078,35 +2088,47 @@ max_threads, isSkewsymmetric)
         if (associated(umcGPU)) then
           nullify(umcGPU)
 
-          successGPU = gpu_free_host(umc_host)
-          check_host_dealloc_gpu("bandred: umc_host ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free_host(umc_host)
+            check_host_dealloc_gpu("bandred: umc_host ", successGPU)
+          endif
 
-          successGPU = gpu_free(umc_dev)
-          check_dealloc_gpu("bandred: umc_dev ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free(umc_dev)
+            check_dealloc_gpu("bandred: umc_dev ", successGPU)
+          endif
         endif
 
         if (associated(vmrGPU)) then
           nullify(vmrGPU)
 
-          successGPU = gpu_free_host(vmr_host)
-          check_host_dealloc_gpu("bandred: vmr_host ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free_host(vmr_host)
+            check_host_dealloc_gpu("bandred: vmr_host ", successGPU)
+          endif
 
-          successGPU = gpu_free(vmr_dev)
-          check_dealloc_gpu("bandred: vmr_dev ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free(vmr_dev)
+            check_dealloc_gpu("bandred: vmr_dev ", successGPU)
+          endif
         endif
 #if defined(WITH_OPENMP_OFFLOAD_GPU_VERSION)
       else 
         if (associated(umcGPU)) then
           deallocate(umcGPU)
 
-          successGPU = gpu_free(umc_dev)
-          check_dealloc_gpu("bandred: umc_dev ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free(umc_dev)
+            check_dealloc_gpu("bandred: umc_dev ", successGPU)
+          endif
         endif
         if (associated(vmrGPU)) then
           deallocate(vmrGPU)
 
-          successGPU = gpu_free(vmr_dev)
-          check_dealloc_gpu("bandred: vmr_dev ", successGPU)
+          if (istep == 1) then
+            successGPU = gpu_free(vmr_dev)
+            check_dealloc_gpu("bandred: vmr_dev ", successGPU)
+          endif
         endif
       endif
 #endif
