@@ -289,6 +289,8 @@ subroutine trans_ev_band_to_full_&
   max_local_rows = max_blocks_row*nblk
   max_local_cols = max_blocks_col*nblk
 
+  l_cols = local_index(nqc, my_pcol, np_cols, nblk, -1) ! Local columns of q_mat
+
   cwy_blocking = blocking_factor * nbw
 
   if (useGPU) then
@@ -311,7 +313,7 @@ subroutine trans_ev_band_to_full_&
     check_stream_synchronize_gpu("trans_ev_band_to_full: q_mat -> q_dev", successGPU)
 
     successGPU = gpu_memcpy_async(q_dev,int(loc(q_mat),kind=c_intptr_t),&
-                  ldq*matrixCols*size_of_datatype, gpuMemcpyHostToDevice, my_stream)
+                  ldq*l_cols*size_of_datatype, gpuMemcpyHostToDevice, my_stream)
     check_memcpy_gpu("trans_ev_band_to_full: q_mat -> q_dev", successGPU)
 
     successGPU = gpu_stream_synchronize(my_stream)
@@ -321,7 +323,7 @@ subroutine trans_ev_band_to_full_&
     check_stream_synchronize_gpu("trans_ev_band_to_full: q_mat -> q_dev", successGPU)
 #else
     successGPU = gpu_memcpy(q_dev,int(loc(q_mat),kind=c_intptr_t),&
-                  ldq*matrixCols*size_of_datatype, gpuMemcpyHostToDevice)
+                  ldq*l_cols*size_of_datatype, gpuMemcpyHostToDevice)
     check_memcpy_gpu("trans_ev_band_to_full: q_mat -> q_dev", successGPU)
 #endif
 
@@ -552,7 +554,6 @@ subroutine trans_ev_band_to_full_&
      endif ! useGPU
 #endif /* MORE_GPUBLAS */
   endif
-  l_cols = local_index(nqc, my_pcol, np_cols, nblk, -1) ! Local columns of q_mat
 
   blk_end = ((na-1)/nbw-1)/blocking_factor + 1
   do istep=1, blk_end
@@ -1472,7 +1473,7 @@ subroutine trans_ev_band_to_full_&
     successGPU = gpu_stream_synchronize(my_stream)
     check_stream_synchronize_gpu("trans_ev_band_to_full: q_dev -> q_mat", successGPU)
 
-    successGPU = gpu_memcpy_async(int(loc(q_mat),kind=c_intptr_t), q_dev, ldq*matrixCols*size_of_datatype, &
+    successGPU = gpu_memcpy_async(int(loc(q_mat),kind=c_intptr_t), q_dev, ldq*l_cols*size_of_datatype, &
                   gpuMemcpyDeviceToHost, my_stream)
     check_memcpy_gpu("trans_ev_band_to_full: q_dev -> q_mat", successGPU)
 
@@ -1482,7 +1483,7 @@ subroutine trans_ev_band_to_full_&
     successGPU = gpu_stream_synchronize()
     check_stream_synchronize_gpu("trans_ev_band_to_full: q_dev -> q_mat", successGPU)
 #else
-    successGPU = gpu_memcpy(int(loc(q_mat),kind=c_intptr_t), q_dev, ldq*matrixCols*size_of_datatype, &
+    successGPU = gpu_memcpy(int(loc(q_mat),kind=c_intptr_t), q_dev, ldq*l_cols*size_of_datatype, &
                   gpuMemcpyDeviceToHost)
     check_memcpy_gpu("trans_ev_band_to_full: q_dev -> q_mat", successGPU)
 #endif
